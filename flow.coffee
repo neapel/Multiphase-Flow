@@ -145,25 +145,35 @@ class Flow
 
 	calculate_forces: ->
 		# Neighborhood grids
-		grids = for i in [0 .. @grid_width - 1]
-			for j in [0 .. @grid_height - 1]
-				[]
+		stride = @grid_width
+		grid_index = (x, y) -> x + y * stride
+		grids = {}
 
 		# Store force calculations for later
 		neighbors = []
 
 		# Calculate each particle's density and neighbors
 		for p in @particles
-			for dx in [-1 .. 1] when 0 <= p.gx + dx < @grid_width
-				for dy in [-1 .. 1] when 0 <= p.gy + dy < @grid_height
-					for q in grids[p.gx + dx][p.gy + dy]
-						if distance2(p, q) < Math.pow(RANGE, 2)
-							neighbors.push( new Neighbors(p, q) )
-			grids[p.gx][p.gy].push(p)
+			for dx in [-1 .. 1]
+				for dy in [-1 .. 1]
+					i = grid_index(p.gx + dx, p.gy + dy)
+					if grids[i] != undefined
+						for q in grids[i]
+							if distance2(p, q) < Math.pow(RANGE, 2)
+								neighbors.push( new Neighbors(p, q) )
+
+			# Add this particle for interaction with others
+			j = grid_index(p.gx, p.gy)
+			if grids[j] == undefined
+				grids[j] = [p]
+			else
+				grids[j].push(p)
+
 
 		# Calculate the forces
 		for n in neighbors
 			n.calcForce()
+
 		null
 
 
