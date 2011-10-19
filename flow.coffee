@@ -1,12 +1,9 @@
 GRAVITY = 0.05
 RANGE = 16
-RANGE2 = RANGE * RANGE
 DENSITY = 2.5
 PRESSURE = 1
 PRESSURE_NEAR = 1
 VISCOSITY = 0.1
-NUM_GRIDS = 29 # Width/range
-INV_GRID_SIZE = 1 / (465 / NUM_GRIDS)
 
 distance2 = (a, b) ->
 	Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)
@@ -75,17 +72,16 @@ Particle.count = 0
 
 
 class Flow
-	constructor: ->
-		@canvas = document.getElementById 'canvas'
-		@context = @canvas.getContext '2d'
-		@canvas.width = @width = 465
-		@canvas.height = @height = 465
+	constructor: (@canvas) ->
 		@particles = []
 
+		@context = @canvas.getContext '2d'
+		@resize(@canvas.width or 465, @canvas.height or 465)
 
 		@canvas.addEventListener 'mousemove', ( (e)=>
 			@mouse.x = e.layerX
-			@mouse.y = e.layerY), false
+			@mouse.y = e.layerY
+		), false
 		@canvas.addEventListener 'mousedown', ( (e)=>
 			e.preventDefault()
 			@mouseDown = true
@@ -99,54 +95,58 @@ class Flow
 			@mouseDown = false
 		), false
 
-
 		@interval = setInterval( =>
-			@canvas.width = @canvas.width
-			if @mouseDown
-				@pour()
+			@pour() if @mouseDown
 			@move()
 		, 20)
 
 		@mouseDown = false
-		@press = false
-		@mouse = {x: null, y: null}
+		@mouse = {x: 50, y: 50}
+
+	resize: (w, h)->
+		# Canvas size
+		@canvas.width = w
+		@canvas.height = h
+
+		# Bounce border
+		border = 5
+		@left = @top = border
+		@right = w - border
+		@bottom = h - border
+
+		# Grid size
+		@grid_width = Math.floor(w / RANGE)
+		@grid_height = Math.floor(h / RANGE)
+
+		# Grid cell size
+		@cell_width = w / @grid_width
+		@cell_height = h / @grid_height
+		
+
 
 	pour: ->
+		LIMIT = 1500 * 2
 		for i in [-4 .. 4]
-			@particles.push(new Particle(@mouse.x + i * 10, @mouse.y))
-			if @particles.length >= 1500
-				@particles.shift()
+			x = @mouse.x + i * 12
+			y = @mouse.y
+			if @particles.length >= LIMIT
+				@particles[Particle.count % LIMIT].constructor(x, y)
+			else
+				@particles.push(new Particle(x, y))
 		null
+
 
 	move: ->
-		@updateGrids()
 		@calculate_forces()
-		for p in @particles
-			@moveParticle(p)
-			@context.fillStyle = p.color
-			@context.fillRect(p.x - 1, p.y - 1, 3, 3)
+		@move_particles()
+		@draw_particles()
 		null
 
-	updateGrids: ->
-		for p in @particles	
-			# Zero all of the things!
-			p.fx = 0
-			p.fy = 0
-			p.density = 0
-			p.densityNear = 0
-			
-			p.gx = Math.floor(p.x * INV_GRID_SIZE)
-			p.gy = Math.floor(p.y * INV_GRID_SIZE)
-			p.gx = 0 if p.gx < 0
-			p.gy = 0 if p.gy < 0
-			p.gx = NUM_GRIDS - 1 if p.gx > NUM_GRIDS - 1
-			p.gy = NUM_GRIDS - 1 if p.gy > NUM_GRIDS - 1
-		null
-	
+
 	calculate_forces: ->
 		# Neighborhood grids
-		grids = for i in [0 .. NUM_GRIDS - 1]
-			for j in [0 .. NUM_GRIDS - 1]
+		grids = for i in [0 .. @grid_width - 1]
+			for j in [0 .. @grid_height - 1]
 				[]
 
 		# Store force calculations for later
@@ -154,38 +154,55 @@ class Flow
 
 		# Calculate each particle's density and neighbors
 		for p in @particles
-			for dx in [-1 .. 1] when 0 <= p.gx + dx < NUM_GRIDS
-				for dy in [-1 .. 1] when 0 <= p.gy + dy < NUM_GRIDS
+			for dx in [-1 .. 1] when 0 <= p.gx + dx < @grid_width
+				for dy in [-1 .. 1] when 0 <= p.gy + dy < @grid_height
 					for q in grids[p.gx + dx][p.gy + dy]
-						if distance2(p, q) < RANGE2
+						if distance2(p, q) < Math.pow(RANGE, 2)
 							neighbors.push( new Neighbors(p, q) )
 			grids[p.gx][p.gy].push(p)
 
 		# Calculate the forces
 		for n in neighbors
 			n.calcForce()
-
 		null
 
 
-	moveParticle: (p) ->
-		p.vy += GRAVITY
-		if p.density > 0
-			p.vx += p.fx / (p.density * 0.9 + 0.1)
-			p.vy += p.fy / (p.density * 0.9 + 0.1)
-		p.x += p.vx
-		p.y += p.vy
-		if p.x < 5
-			p.vx += (5 - p.x) * 0.5 - p.vx * 0.5
-		if p.x > 460
-			p.vx += (460 - p.x) * 0.5 - p.vx * 0.5
-		if p.y < 5
-			p.vy += (5 - p.y) * 0.5 - p.vy * 0.5
-		if p.y > 460
-			p.vy += (460 - p.y) * 0.5 - p.vy * 0.5
+	move_particles: ->
+		for p in @particles
+			# Calculate new position
+			p.vy += GRAVITY
+			if p.density > 0
+				p.vx += p.fx / (p.density * 0.9 + 0.1)
+				p.vy += p.fy / (p.density * 0.9 + 0.1)
+			p.x += p.vx
+			p.y += p.vy
+
+			# Bounce off walls
+			p.vx += (@left - p.x) * 0.5 - p.vx * 0.5 if p.x < @left
+			p.vx += (@right - p.x) * 0.5 - p.vx * 0.5 if p.x > @right
+			p.vy += (@top - p.y) * 0.5 - p.vy * 0.5 if p.y < @top
+			p.vy += (@bottom - p.y) * 0.5 - p.vy * 0.5 if p.y > @bottom
+
+			# Reset
+			p.fx = p.fy = p.density = p.densityNear = 0
+
+			# Grid position
+			p.gx = Math.min(@grid_width - 1, Math.max(0, Math.floor(p.x / @cell_width)))
+			p.gy = Math.min(@grid_height - 1, Math.max(0, Math.floor(p.y / @cell_height)))
 		null
+
+
+	draw_particles: ->
+		@canvas.width = @canvas.width
+		for p in @particles
+			@context.fillStyle = p.color
+			@context.fillRect(p.x - 1, p.y - 1, 3, 3)
 
 
 
 window.onload = ->
-	f = new Flow()
+	f = new Flow(document.getElementById 'canvas')
+	resize = ->
+		f.resize(window.innerWidth, window.innerHeight)
+	window.addEventListener 'resize', resize, false
+	resize()
