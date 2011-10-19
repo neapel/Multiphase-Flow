@@ -81,10 +81,7 @@ class Flow
 		@canvas.width = @width = 465
 		@canvas.height = @height = 465
 		@particles = []
-		@neighbors = []
-		@grids = for i in [0 .. NUM_GRIDS - 1]
-			for j in [0 .. NUM_GRIDS - 1]
-				[]
+
 
 		@canvas.addEventListener 'mousemove', ( (e)=>
 			@mouse.x = e.layerX
@@ -123,8 +120,7 @@ class Flow
 
 	move: ->
 		@updateGrids()
-		@findNeighbors()
-		@calcForce()
+		@calculate_forces()
 		for p in @particles
 			@moveParticle(p)
 			@context.fillStyle = p.color
@@ -147,24 +143,30 @@ class Flow
 			p.gy = NUM_GRIDS - 1 if p.gy > NUM_GRIDS - 1
 		null
 	
-	findNeighbors: ->
-		@neighbors.length = 0
-		for h in @grids
-			for g in h
-				g.length = 0
+	calculate_forces: ->
+		# Neighborhood grids
+		grids = for i in [0 .. NUM_GRIDS - 1]
+			for j in [0 .. NUM_GRIDS - 1]
+				[]
+
+		# Store force calculations for later
+		neighbors = []
+
+		# Calculate each particle's density and neighbors
 		for p in @particles
 			for dx in [-1 .. 1] when 0 <= p.gx + dx < NUM_GRIDS
 				for dy in [-1 .. 1] when 0 <= p.gy + dy < NUM_GRIDS
-					for q in @grids[p.gx + dx][p.gy + dy]
+					for q in grids[p.gx + dx][p.gy + dy]
 						if distance2(p, q) < RANGE2
-							@neighbors.push( new Neighbors(p, q) )
-			@grids[p.gx][p.gy].push(p)
+							neighbors.push( new Neighbors(p, q) )
+			grids[p.gx][p.gy].push(p)
+
+		# Calculate the forces
+		for n in neighbors
+			n.calcForce()
+
 		null
 
-	calcForce: ->
-		for n in @neighbors
-			n.calcForce()
-		null
 
 	moveParticle: (p) ->
 		p.vy += GRAVITY
