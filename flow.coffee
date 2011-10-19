@@ -1,51 +1,16 @@
+# Downwards velocity added each step
 GRAVITY = 0.05
+# Spring length
 RANGE = 20
+# Adjustments
 DENSITY = 2.5
 PRESSURE = 1
 PRESSURE_NEAR = 1
 VISCOSITY = 0.1
+# Maximum number of particles
 LIMIT = 1500
 
-
-class Neighbors
-	constructor: (@p1, @p2) ->
-		@nx = @p1.x - @p2.x
-		@ny = @p1.y - @p2.y
-		@distance = Math.sqrt(@nx * @nx + @ny * @ny)
-		@weight = 1 - @distance / RANGE
-		density = @weight * @weight
-		@p1.density += density
-		@p2.density += density
-		density *= @weight * PRESSURE_NEAR
-		@p1.densityNear += density
-		@p2.densityNear += density
-		
-		@nx /= @distance
-		@ny /= @distance
-	
-	calcForce: ->
-		if @p1.type != @p2.type
-			p = (@p1.density + @p2.density - DENSITY * 1.5) * PRESSURE
-		else
-			p = (@p1.density + @p2.density - DENSITY * 2) * PRESSURE
-		pn = (@p1.densityNear + @p2.densityNear) * PRESSURE_NEAR
-		pressureWeight = @weight * (p + @weight * pn)
-		viscocityWeight = @weight * VISCOSITY
-		
-		fx = @nx * pressureWeight
-		fy = @ny * pressureWeight
-		
-		fx += (@p2.vx - @p1.vx) * viscocityWeight
-		fy += (@p2.vy - @p1.vy) * viscocityWeight
-		
-		@p1.fx += fx
-		@p1.fy += fy
-		
-		@p2.fx -= fx
-		@p2.fy -= fy
-		null
-
-
+# Particle colors
 COLORS = [
 	'#6060ff'
 	'#ff6000'
@@ -55,80 +20,119 @@ COLORS = [
 ]
 
 
+# A force acting between two particles
+class Neighbors
+	# First part of force calculation
+	constructor: (@p1, @p2) ->
+		@nx = @p1.x - @p2.x
+		@ny = @p1.y - @p2.y
+		distance = Math.sqrt(@nx * @nx + @ny * @ny)
+		if distance > 0.01
+			@nx /= distance
+			@ny /= distance
+		@weight = 1 - distance / RANGE
+		density = @weight * @weight
+		@p1.density += density
+		@p2.density += density
+		density *= @weight * PRESSURE_NEAR
+		@p1.density_near += density
+		@p2.density_near += density
+
+	# Second part of force calculation
+	calculate_force: ->
+		target_density = (if @p1.type == @p2.type then 2 else 1.5) * DENSITY
+		pressure = (@p1.density + @p2.density - target_density) * PRESSURE
+		pressure_near = (@p1.density_near + @p2.density_near) * PRESSURE_NEAR
+		pressure_weight = @weight * (pressure + @weight * pressure_near)
+		viscocity_weight = @weight * VISCOSITY
+		fx = @nx * pressure_weight + (@p2.vx - @p1.vx) * viscocity_weight
+		fy = @ny * pressure_weight + (@p2.vy - @p1.vy) * viscocity_weight
+		@p1.fx += fx
+		@p1.fy += fy
+		@p2.fx -= fx
+		@p2.fy -= fy
+		null
+
+
+# One particle.
 class Particle
 	constructor: (@x, @y, type) ->
+		# Grid position
 		@gx = @gy = 0
+		# Velocity
 		@vx = 0
 		@vy = 4 + Math.random() * 4
+		# Force
 		@fx = @fy = 0
-		@density = @densityNear = 0
-		@gravity = GRAVITY
+		# Environment
+		@density = @density_near = 0
+		# Material
 		@type = type % COLORS.length
 		@color = COLORS[@type]
 
 
-
 class Flow
 	constructor: (@canvas) ->
+		# All the particles
 		@particles = []
-		@neighbors = [] # re-use objects
-
+		# Re-using calculation objects
+		@neighbors = []
+		# Drawing context
 		@context = @canvas.getContext '2d'
 		@resize(@canvas.width or 465, @canvas.height or 465)
-
-		@canvas.addEventListener 'mousemove', ( (e)=>
-			@mouse.x = e.layerX
-			@mouse.y = e.layerY
+		# Event Listeners
+		@canvas.addEventListener 'mousemove', (
+			(e) => [@mouse.x, @mouse.y] = [e.layerX, e.layerY]
 		), false
 		@canvas.addEventListener 'mousedown', ( (e)=>
 			e.preventDefault()
-			@mouseDown = true
+			@pressing = true
 			@splash++
 		), false
-		@canvas.addEventListener 'mouseup', ( (e)=>
+		up = (e) =>
 			e.preventDefault()
-			@mouseDown = false
-		), false
-		@canvas.addEventListener 'mouseout', ( (e)=>
-			e.preventDefault()
-			@mouseDown = false
-		), false
-
-		@interval = setInterval( =>
-			@pour() if @mouseDown
-			@move()
-		, 20)
-
-		@mouseDown = false
+			@pressing = false
+		@canvas.addEventListener 'mouseup', up, false
+		@canvas.addEventListener 'mouseout', up, false
+		# Current mouse state
+		@pressing = false
 		@mouse = {x: 50, y: 50}
+		# Count splashes for coloring
 		@splash = 0
+		# Index of oldest particle
 		@last_particle = 0
+		# Start the animation
+		@render_frame()
 
+	# Render one frame
+	render_frame: =>
+		window._requestAnimationFrame(@render_frame, @canvas)
+		@pour() if @pressing
+		@calculate_forces()
+		@move_particles()
+		@draw_particles()
+		null
 
-
+	# Resize the canvas and grid
 	resize: (w, h)->
 		# Canvas size
 		@canvas.width = w
 		@canvas.height = h
-
 		# Bounce border
 		border = 5
 		@left = @top = border
 		@right = w - border
 		@bottom = h - border
-
-		# Grid size
+		# Grid and cell size
 		@grid_width = Math.floor(w / RANGE)
 		@grid_height = Math.floor(h / RANGE)
-
-		# Grid cell size
 		@cell_width = w / @grid_width
 		@cell_height = h / @grid_height
-		
+		null
 
-
+	# Add dots to the simulation
 	pour: ->
-		for i in [-4 .. 4]
+		for i in [-3 .. 3]
 			x = @mouse.x + i * RANGE * 0.8
 			y = @mouse.y
 			if @particles.length >= LIMIT
@@ -137,53 +141,38 @@ class Flow
 				@particles.push(new Particle(x, y, @splash))
 		null
 
-
-	move: ->
-		@calculate_forces()
-		@move_particles()
-		@draw_particles()
-		null
-
-
+	# Calculate forces between all particles
 	calculate_forces: ->
-		# Neighborhood grids
+		# Neighborhood grid
 		stride = @grid_width
 		grid_index = (x, y) -> x + y * stride
-		grids = {}
-
+		grid = {}
 		# Store force calculations for later
 		n_index = 0
-
 		# Calculate each particle's density and neighbors
 		for p in @particles
 			for dx in [-1 .. 1]
 				for dy in [-1 .. 1]
 					i = grid_index(p.gx + dx, p.gy + dy)
-					if grids[i] != undefined
-						for q in grids[i]
+					if grid[i] != undefined
+						for q in grid[i]
 							if Math.pow(p.x - q.x, 2) + Math.pow(p.y - q.y, 2) < Math.pow(RANGE, 2)
 								if n_index >= @neighbors.length
 									@neighbors.push( new Neighbors(p, q) )
 								else
 									@neighbors[n_index].constructor(p, q)
 								n_index++
-
 			# Add this particle for interaction with others
 			j = grid_index(p.gx, p.gy)
-			if grids[j] == undefined
-				grids[j] = [p]
-			else
-				grids[j].push(p)
-
+			(if grid[j] == undefined then grid[j] = [] else grid[j]).push(p)
+		# Truncate
 		@neighbors.length = n_index
-
 		# Calculate the forces
 		for n in @neighbors
-			n.calcForce()
-
+			n.calculate_force()
 		null
 
-
+	# Move particles according to forces
 	move_particles: ->
 		for p in @particles
 			# Calculate new position
@@ -193,28 +182,32 @@ class Flow
 				p.vy += p.fy / (p.density * 0.9 + 0.1)
 			p.x += p.vx
 			p.y += p.vy
-
 			# Bounce off walls
 			p.vx += (@left - p.x) * 0.5 - p.vx * 0.5 if p.x < @left
 			p.vx += (@right - p.x) * 0.5 - p.vx * 0.5 if p.x > @right
 			p.vy += (@top - p.y) * 0.5 - p.vy * 0.5 if p.y < @top
 			p.vy += (@bottom - p.y) * 0.5 - p.vy * 0.5 if p.y > @bottom
-
 			# Reset
-			p.fx = p.fy = p.density = p.densityNear = 0
-
+			p.fx = p.fy = p.density = p.density_near = 0
 			# Grid position
 			p.gx = Math.min(@grid_width - 1, Math.max(0, Math.floor(p.x / @cell_width)))
 			p.gy = Math.min(@grid_height - 1, Math.max(0, Math.floor(p.y / @cell_height)))
 		null
 
-
+	# Draw current state
 	draw_particles: ->
-		@canvas.width = @canvas.width
+		NICE = true
+		if NICE
+			@canvas.width = @canvas.width
+		else
+			@context.save()
+			@context.fillStyle = 'white'
+			@context.globalAlpha = 0.65
+			@context.fillRect(0, 0, @canvas.width, @canvas.height)
+			@context.restore()
 		last_type = -1
 		r = RANGE / 8.0
-
-		if false
+		if not NICE
 			# Draw particles as dots
 			for p in @particles
 				if p.type != last_type
@@ -238,7 +231,6 @@ class Flow
 				@context.lineTo(p.x - f * p.vx, p.y - f * p.vy)
 				count++
 			@context.stroke()
-
 		# Info
 		if false
 			@context.fillStyle = 'black'
@@ -246,12 +238,20 @@ class Flow
 			@context.fillText(s, 10, 40)
 
 
-
-
 window.onload = ->
+	# Used for smooth CPU preserving animation
+	window._requestAnimationFrame = window.requestAnimationFrame or
+		window.webkitRequestAnimationFrame or
+		window.mozRequestAnimationFrame or
+		window.oRequestAnimationFrame or
+		window.msRequestAnimationFrame or
+		(cb, e) -> window.setTimeout(cb, 20)
+	# Initialize and start
 	f = new Flow(document.getElementById 'canvas')
 	resize = ->
 		w = Math.min(400, window.innerWidth)
 		f.resize(w, window.innerHeight)
-	window.addEventListener 'resize', resize, false
 	resize()
+	# Resize canvas with window
+	window.addEventListener 'resize', resize, false
+	
