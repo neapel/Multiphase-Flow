@@ -60,13 +60,16 @@ COLORS = [
 
 
 class Particle
-	constructor: (@x, @y, @type) ->
+	constructor: (@x, @y) ->
 		@gx = @gy = 0
-		@vx = @vy = 0
+		@vx = 0
+		@vy = 5
 		@fx = @fy = 0
 		@density = @densityNear = 0
 		@gravity = GRAVITY
+		@type = Math.floor(Particle.count++ / 100) % COLORS.length
 		@color = COLORS[@type]
+Particle.count = 0
 
 
 class Grid
@@ -123,9 +126,7 @@ class Flow
 
 	pour: ->
 		for i in [-4 .. 4]
-			p = new Particle(@mouse.x + i * 10, @mouse.y, Math.floor(@count / 10 % 5))
-			p.vy = 5
-			@particles.push p
+			@particles.push(new Particle(@mouse.x + i * 10, @mouse.y))
 			if @particles.length >= 1500
 				@particles.shift()
 		null
