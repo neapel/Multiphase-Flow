@@ -1,12 +1,10 @@
 GRAVITY = 0.05
-RANGE = 16
+RANGE = 20
 DENSITY = 2.5
 PRESSURE = 1
 PRESSURE_NEAR = 1
 VISCOSITY = 0.1
-
-distance2 = (a, b) ->
-	Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)
+LIMIT = 1500
 
 
 class Neighbors
@@ -58,22 +56,22 @@ COLORS = [
 
 
 class Particle
-	constructor: (@x, @y) ->
+	constructor: (@x, @y, type) ->
 		@gx = @gy = 0
 		@vx = 0
-		@vy = 5
+		@vy = 4 + Math.random() * 4
 		@fx = @fy = 0
 		@density = @densityNear = 0
 		@gravity = GRAVITY
-		@type = Math.floor(Particle.count++ / 100) % COLORS.length
+		@type = type % COLORS.length
 		@color = COLORS[@type]
-Particle.count = 0
 
 
 
 class Flow
 	constructor: (@canvas) ->
 		@particles = []
+		@neighbors = [] # re-use objects
 
 		@context = @canvas.getContext '2d'
 		@resize(@canvas.width or 465, @canvas.height or 465)
@@ -85,6 +83,7 @@ class Flow
 		@canvas.addEventListener 'mousedown', ( (e)=>
 			e.preventDefault()
 			@mouseDown = true
+			@splash++
 		), false
 		@canvas.addEventListener 'mouseup', ( (e)=>
 			e.preventDefault()
@@ -102,6 +101,10 @@ class Flow
 
 		@mouseDown = false
 		@mouse = {x: 50, y: 50}
+		@splash = 0
+		@last_particle = 0
+
+
 
 	resize: (w, h)->
 		# Canvas size
@@ -125,14 +128,13 @@ class Flow
 
 
 	pour: ->
-		LIMIT = 1500 * 2
 		for i in [-4 .. 4]
-			x = @mouse.x + i * 12
+			x = @mouse.x + i * RANGE * 0.8
 			y = @mouse.y
 			if @particles.length >= LIMIT
-				@particles[Particle.count % LIMIT].constructor(x, y)
+				@particles[@last_particle++ % LIMIT].constructor(x, y, @splash)
 			else
-				@particles.push(new Particle(x, y))
+				@particles.push(new Particle(x, y, @splash))
 		null
 
 
@@ -150,7 +152,7 @@ class Flow
 		grids = {}
 
 		# Store force calculations for later
-		neighbors = []
+		n_index = 0
 
 		# Calculate each particle's density and neighbors
 		for p in @particles
@@ -159,8 +161,12 @@ class Flow
 					i = grid_index(p.gx + dx, p.gy + dy)
 					if grids[i] != undefined
 						for q in grids[i]
-							if distance2(p, q) < Math.pow(RANGE, 2)
-								neighbors.push( new Neighbors(p, q) )
+							if Math.pow(p.x - q.x, 2) + Math.pow(p.y - q.y, 2) < Math.pow(RANGE, 2)
+								if n_index >= @neighbors.length
+									@neighbors.push( new Neighbors(p, q) )
+								else
+									@neighbors[n_index].constructor(p, q)
+								n_index++
 
 			# Add this particle for interaction with others
 			j = grid_index(p.gx, p.gy)
@@ -169,9 +175,10 @@ class Flow
 			else
 				grids[j].push(p)
 
+		@neighbors.length = n_index
 
 		# Calculate the forces
-		for n in neighbors
+		for n in @neighbors
 			n.calcForce()
 
 		null
@@ -204,15 +211,47 @@ class Flow
 
 	draw_particles: ->
 		@canvas.width = @canvas.width
-		for p in @particles
-			@context.fillStyle = p.color
-			@context.fillRect(p.x - 1, p.y - 1, 3, 3)
+		last_type = -1
+		r = RANGE / 8.0
+
+		if false
+			# Draw particles as dots
+			for p in @particles
+				if p.type != last_type
+					@context.fillStyle = p.color
+				last_type = p.type
+				@context.fillRect(p.x - r, p.y - r, 2 * r, 2 * r)
+		else
+			# Elongated dots
+			f = 2
+			@context.lineWidth = 2 * r
+			@context.lineCap = 'round'
+			count = 0
+			for p in @particles
+				if p.type != last_type
+					@context.stroke()
+					@context.beginPath()
+					@context.strokeStyle = p.color
+					count = 0
+				last_type = p.type
+				@context.moveTo(p.x, p.y)
+				@context.lineTo(p.x - f * p.vx, p.y - f * p.vy)
+				count++
+			@context.stroke()
+
+		# Info
+		if false
+			@context.fillStyle = 'black'
+			s = "#{@particles.length} particles, #{@neighbors.length} collisions"
+			@context.fillText(s, 10, 40)
+
 
 
 
 window.onload = ->
 	f = new Flow(document.getElementById 'canvas')
 	resize = ->
-		f.resize(window.innerWidth, window.innerHeight)
+		w = Math.min(400, window.innerWidth)
+		f.resize(w, window.innerHeight)
 	window.addEventListener 'resize', resize, false
 	resize()

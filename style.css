@@ -5,7 +5,22 @@ canvas {
 }
 
 footer {
+	display: inline-block;
 	position: absolute;
 	top: 0;
 	left: 0;
+	font: 80%/1.2 sans-serif;
+	padding: 0.25em 0.5em;
+	background: rgba(255, 255, 255, 0.8);
+	color: #000;
+}
+
+a:link, a:visited, a:active {
+	color: inherit;
+	text-decoration: underline;
+}
+a:hover, a:focus {
+	color: #fff;
+	background-color: #000;
+	text-decoration: none;
 }
