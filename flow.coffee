@@ -73,16 +73,6 @@ class Particle
 Particle.count = 0
 
 
-class Grid
-	constructor: ->
-		@particles = []
-	
-	add: (particle) ->
-		@particles.push(particle)
-		null
-
-
-
 
 class Flow
 	constructor: ->
@@ -94,7 +84,7 @@ class Flow
 		@neighbors = []
 		@grids = for i in [0 .. NUM_GRIDS - 1]
 			for j in [0 .. NUM_GRIDS - 1]
-				new Grid()
+				[]
 
 		@canvas.addEventListener 'mousemove', ( (e)=>
 			@mouse.x = e.layerX
@@ -142,10 +132,6 @@ class Flow
 		null
 
 	updateGrids: ->
-		for h in @grids
-			for g in h
-				g.particles.length = 0
-
 		for p in @particles	
 			# Zero all of the things!
 			p.fx = 0
@@ -163,13 +149,16 @@ class Flow
 	
 	findNeighbors: ->
 		@neighbors.length = 0
+		for h in @grids
+			for g in h
+				g.length = 0
 		for p in @particles
 			for dx in [-1 .. 1] when 0 <= p.gx + dx < NUM_GRIDS
 				for dy in [-1 .. 1] when 0 <= p.gy + dy < NUM_GRIDS
-					for q in @grids[p.gx + dx][p.gy + dy].particles
+					for q in @grids[p.gx + dx][p.gy + dy]
 						if distance2(p, q) < RANGE2
 							@neighbors.push( new Neighbors(p, q) )
-			@grids[p.gx][p.gy].add(p)
+			@grids[p.gx][p.gy].push(p)
 		null
 
 	calcForce: ->
