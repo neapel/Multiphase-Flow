@@ -8,24 +8,25 @@ VISCOSITY = 0.1
 NUM_GRIDS = 29 # Width/range
 INV_GRID_SIZE = 1 / (465 / NUM_GRIDS)
 
+distance2 = (a, b) ->
+	Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)
+
+
 class Neighbors
-	setParticle: (p1, p2) ->
-		@p1 = p1
-		@p2 = p2
-		@nx = p1.x - p2.x
-		@ny = p1.y - p2.y
+	constructor: (@p1, @p2) ->
+		@nx = @p1.x - @p2.x
+		@ny = @p1.y - @p2.y
 		@distance = Math.sqrt(@nx * @nx + @ny * @ny)
 		@weight = 1 - @distance / RANGE
 		density = @weight * @weight
-		p1.density += density
-		p2.density += density
+		@p1.density += density
+		@p2.density += density
 		density *= @weight * PRESSURE_NEAR
-		p1.densityNear += density
-		p2.densityNear += density
+		@p1.densityNear += density
+		@p2.densityNear += density
 		
 		@nx /= @distance
 		@ny /= @distance
-		null
 	
 	calcForce: ->
 		if @p1.type != @p2.type
@@ -94,7 +95,6 @@ class Flow
 		@grids = for i in [0 .. NUM_GRIDS - 1]
 			for j in [0 .. NUM_GRIDS - 1]
 				new Grid()
-		@count = 0
 
 		@canvas.addEventListener 'mousemove', ( (e)=>
 			@mouse.x = e.layerX
@@ -132,7 +132,6 @@ class Flow
 		null
 
 	move: ->
-		@count++
 		@updateGrids()
 		@findNeighbors()
 		@calcForce()
@@ -165,29 +164,12 @@ class Flow
 	findNeighbors: ->
 		@neighbors.length = 0
 		for p in @particles
-			xMin = p.gx != 0
-			xMax = p.gx != (NUM_GRIDS - 1)
-			yMin = p.gy != 0
-			yMax = p.gy != (NUM_GRIDS - 1)
-			@findNeighborsInGrid(p, @grids[p.gx][p.gy])
-			@findNeighborsInGrid(p, @grids[p.gx - 1][p.gy]) if xMin
-			@findNeighborsInGrid(p, @grids[p.gx + 1][p.gy]) if xMax
-			@findNeighborsInGrid(p, @grids[p.gx][p.gy - 1]) if yMin
-			@findNeighborsInGrid(p, @grids[p.gx][p.gy + 1]) if yMax
-			@findNeighborsInGrid(p, @grids[p.gx - 1][p.gy - 1]) if xMin and yMin
-			@findNeighborsInGrid(p, @grids[p.gx - 1][p.gy + 1]) if xMin and yMax
-			@findNeighborsInGrid(p, @grids[p.gx + 1][p.gy - 1]) if xMax and yMin
-			@findNeighborsInGrid(p, @grids[p.gx + 1][p.gy + 1]) if xMax and yMax
+			for dx in [-1 .. 1] when 0 <= p.gx + dx < NUM_GRIDS
+				for dy in [-1 .. 1] when 0 <= p.gy + dy < NUM_GRIDS
+					for q in @grids[p.gx + dx][p.gy + dy].particles
+						if distance2(p, q) < RANGE2
+							@neighbors.push( new Neighbors(p, q) )
 			@grids[p.gx][p.gy].add(p)
-		null
-	
-	findNeighborsInGrid: (pi, g) ->
-		for pj in g.particles
-			distance = (pi.x - pj.x) * (pi.x - pj.x) + (pi.y - pj.y) * (pi.y - pj.y)
-			if distance < RANGE2
-				n = new Neighbors()
-				n.setParticle(pi, pj)
-				@neighbors.push n
 		null
 
 	calcForce: ->
