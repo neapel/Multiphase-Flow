@@ -9,6 +9,8 @@ PRESSURE_NEAR = 1
 VISCOSITY = 0.1
 # Maximum number of particles
 LIMIT = 1500
+# Draw pretty rounded lines (impacts mostly browser canvas performance, not JS)
+NICE = true
 
 
 # Particle colors
@@ -61,8 +63,7 @@ class Particle
 		# Grid position
 		@gx = @gy = 0
 		# Velocity
-		@vx = 0
-		@vy = 4 + Math.random() * 4
+		@vx = @vy = 0
 		# Force
 		@fx = @fy = 0
 		# Environment
@@ -70,6 +71,8 @@ class Particle
 		# Material
 		@type = type % COLORS.length
 		@color = COLORS[@type]
+		# Age in frames
+		@age = 0
 
 
 class Flow
@@ -133,13 +136,16 @@ class Flow
 
 	# Add dots to the simulation
 	pour: ->
-		for i in [-3 .. 3]
-			x = @mouse.x + i * RANGE / DENSITY
-			y = @mouse.y
-			if @particles.length >= LIMIT
-				@particles[@last_particle++ % LIMIT].constructor(x, y, @splash)
-			else
-				@particles.push(new Particle(x, y, @splash))
+		k = 1
+		for j in [-k .. k]
+			for i in [-k .. k]
+				f = 2
+				x = @mouse.x + i * f + Math.random()
+				y = @mouse.y + j * f + Math.random()
+				if @particles.length >= LIMIT
+					@particles[@last_particle++ % LIMIT].constructor(x, y, @splash)
+				else
+					@particles.push(new Particle(x, y, @splash))
 		null
 
 	# Calculate forces between all particles
@@ -183,6 +189,9 @@ class Flow
 				p.vy += p.fy / (p.density * 0.9 + 0.1)
 			p.x += p.vx
 			p.y += p.vy
+			# Reset young particle velocity to prevent spawn explosion
+			if p.age++ < 10
+				p.vx = p.vy = 0
 			# Bounce off walls
 			p.vx += (@left - p.x) * 0.5 - p.vx * 0.5 if p.x < @left
 			p.vx += (@right - p.x) * 0.5 - p.vx * 0.5 if p.x > @right
@@ -193,11 +202,11 @@ class Flow
 			# Grid position
 			p.gx = Math.min(@grid_width - 1, Math.max(0, Math.floor(p.x / @cell_width)))
 			p.gy = Math.min(@grid_height - 1, Math.max(0, Math.floor(p.y / @cell_height)))
+
 		null
 
 	# Draw current state
 	draw_particles: ->
-		NICE = true
 		if NICE
 			@canvas.width = @canvas.width
 		else
