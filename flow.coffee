@@ -10,6 +10,7 @@ VISCOSITY = 0.1
 # Maximum number of particles
 LIMIT = 1500
 
+
 # Particle colors
 COLORS = [
 	'#6060ff'
@@ -133,7 +134,7 @@ class Flow
 	# Add dots to the simulation
 	pour: ->
 		for i in [-3 .. 3]
-			x = @mouse.x + i * RANGE * 0.8
+			x = @mouse.x + i * RANGE / DENSITY
 			y = @mouse.y
 			if @particles.length >= LIMIT
 				@particles[@last_particle++ % LIMIT].constructor(x, y, @splash)
@@ -240,6 +241,40 @@ class Flow
 			@context.fillText(s, 10, 40)
 
 
+# UI integration
+html = (name, args, children, events) ->
+	e = document.createElement name
+	e.setAttribute k, v for k, v of args or {}
+	e.appendChild c for c in children or []
+	e.addEventListener k ,v, false for k, v of events or {}
+	e
+text = (value) -> document.createTextNode value
+
+create_options = (parent)->
+	parent.appendChild pane = html 'p', {id: 'options', style: 'display: none'}
+	parent.appendChild p = html 'p', {id: 'help'}, [
+		text 'Click in the white area to spill dots. Try changing the window height or '
+		html 'a', {href: '#'}, [text('play with the options')],
+			click: (e) =>
+				e.preventDefault()
+				parent.removeChild p
+				pane.style.display = 'block'
+		text '.'
+	]
+	option = (name, min, max, variable, notify) ->
+		range = 1000
+		pane.appendChild html 'label', {}, [
+			text name
+			html 'input', {type: 'range', min: 0, max: range,
+			value: (window[variable] - min) / (max - min) * range}, [], 
+				change: (e)->
+					value = window[variable] = min + (max - min) * e.target.value / range
+					notify(value) if notify
+		]
+		option
+
+
+MAX_WIDTH = 400
 window.onload = ->
 	# Used for smooth CPU preserving animation
 	window._requestAnimationFrame = window.requestAnimationFrame or
@@ -251,8 +286,18 @@ window.onload = ->
 	# Initialize and start
 	f = new Flow(document.getElementById 'canvas')
 	resize = ->
-		w = Math.min(400, window.innerWidth)
+		w = Math.min(MAX_WIDTH, window.innerWidth)
 		f.resize(w, window.innerHeight)
 	resize()
 	# Resize canvas with window
 	window.addEventListener 'resize', resize, false
+	# Options pane
+	create_options(document.getElementById 'info')\
+		('Gravity', 0, 1, 'GRAVITY')\
+		('Density', 0, 5, 'DENSITY')\
+		('Type Sep.', 0, 1, 'PRESSURE')\
+		('Inner Sep.', 0.1, 1, 'PRESSURE_NEAR')\
+		('Dot Limit', 10, 10000, 'LIMIT', ->
+			LIMIT = Math.floor(LIMIT)
+			if f.particles.length > LIMIT then f.particles.length = LIMIT
+		)('Max Width', 50, 2000, 'MAX_WIDTH', resize)

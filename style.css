@@ -1,18 +1,29 @@
+body {
+	margin: 0; padding: 0;
+	font: 80%/1.2 sans-serif;
+	background: #eee;
+	color: #000;
+}
+
 canvas {
 	position: absolute;
 	top: 0;
 	left: 0;
+	background: #fff;
 }
 
-footer {
-	display: inline-block;
+#info {
 	position: absolute;
-	top: 0;
-	left: 0;
-	font: 80%/1.2 sans-serif;
+	right: 0;
+	bottom: 0;
 	padding: 0.25em 0.5em;
 	background: rgba(255, 255, 255, 0.8);
-	color: #000;
+}
+
+#help { max-width: 15em ;}
+
+p {
+	margin: 1em; padding: 0;
 }
 
 a:link, a:visited, a:active {
@@ -23,4 +34,26 @@ a:hover, a:focus {
 	color: #fff;
 	background-color: #000;
 	text-decoration: none;
+}
+
+#showoptions {
+	text-align: center;
+	font-size: 80%;
+}
+#options {
+	text-align: right;
+}
+label {
+	display: block;
+}
+input[type='range'] {
+	-webkit-appearance: none !important;
+	height: 0.8em; width: 10em;
+	border: 1px solid #ccc;
+	margin: 0 0 0 0.5em;
+}
+input[type='range']::-webkit-slider-thumb {
+	-webkit-appearance: none !important;
+	background: #000;
+	height: 0.8em; width: 2em;
 }
