@@ -11,7 +11,10 @@ VISCOSITY = 0.1
 LIMIT = 1500
 # Draw pretty rounded lines (impacts mostly browser canvas performance, not JS)
 NICE = true
-
+# Dot radius
+RADIUS = 2.5
+# Velocity scale for nice rendering
+VEL_SCALE = 2
 
 # Particle colors
 COLORS = [
@@ -76,7 +79,7 @@ class Particle
 
 
 class Flow
-	constructor: (@canvas) ->
+	constructor: (@canvas, @info) ->
 		# All the particles
 		@particles = []
 		# Re-using calculation objects
@@ -100,11 +103,12 @@ class Flow
 		@canvas.addEventListener 'mouseout', up, false
 		# Current mouse state
 		@pressing = false
-		@mouse = {x: 50, y: 50}
 		# Count splashes for coloring
 		@splash = 0
 		# Index of oldest particle
 		@last_particle = 0
+		# Frame counter
+		@frame = 0
 		# Start the animation
 		@render_frame()
 
@@ -115,6 +119,7 @@ class Flow
 		@calculate_forces()
 		@move_particles()
 		@draw_particles()
+		@frame++
 		null
 
 	# Resize the canvas and grid
@@ -132,6 +137,8 @@ class Flow
 		@grid_height = Math.floor(h / RANGE)
 		@cell_width = w / @grid_width
 		@cell_height = h / @grid_height
+		# Default position
+		@mouse = {x: w/2, y: h/3}
 		null
 
 	# Add dots to the simulation
@@ -207,47 +214,41 @@ class Flow
 
 	# Draw current state
 	draw_particles: ->
-		if NICE
-			@canvas.width = @canvas.width
-		else
-			@context.save()
-			@context.fillStyle = 'white'
-			@context.globalAlpha = 0.65
-			@context.fillRect(0, 0, @canvas.width, @canvas.height)
-			@context.restore()
+		@canvas.width = @canvas.width
 		last_type = -1
-		r = RANGE / 8.0
-		if not NICE
+		if VEL_SCALE == 0
 			# Draw particles as dots
 			for p in @particles
 				if p.type != last_type
 					@context.fillStyle = p.color
 				last_type = p.type
-				@context.fillRect(p.x - r, p.y - r, 2 * r, 2 * r)
+				@context.fillRect(p.x - RADIUS, p.y - RADIUS, 2 * RADIUS, 2 * RADIUS)
 		else
 			# Elongated dots
-			f = 2
-			@context.lineWidth = 2 * r
+			@context.lineWidth = 2 * RADIUS
 			@context.lineCap = 'round'
-			count = 0
 			for p in @particles
 				if p.type != last_type
 					@context.stroke()
 					@context.beginPath()
 					@context.strokeStyle = p.color
-					count = 0
 				last_type = p.type
 				@context.moveTo(p.x, p.y)
-				vx = f * p.vx
+				vx = VEL_SCALE * p.vx
 				vx = 0.5 if Math.abs(vx) < 0.01
-				@context.lineTo(p.x - vx, p.y - f * p.vy)
-				count++
+				@context.lineTo(p.x - vx, p.y - VEL_SCALE * p.vy)
 			@context.stroke()
-		# Info
-		if false
-			@context.fillStyle = 'black'
-			s = "#{@particles.length} particles, #{@neighbors.length} collisions"
-			@context.fillText(s, 10, 40)
+		# Statistics
+		INFO_RATE = 10
+		if @info and (@frame % INFO_RATE) == 0
+			s = "#{@particles.length} particles"
+			now = Date.now()
+			if @last_frame
+				r = INFO_RATE * 1000.0 / (now - @last_frame)
+				s += ", #{Math.round(r)} fps"
+			@info s
+			@last_frame = now
+		null
 
 
 # UI integration
@@ -258,18 +259,20 @@ html = (name, args, children, events) ->
 	e.addEventListener k ,v, false for k, v of events or {}
 	e
 text = (value) -> document.createTextNode value
+$ = (n) -> document.getElementById(n)
 
 create_options = (parent)->
-	parent.appendChild pane = html 'p', {id: 'options', style: 'display: none'}
-	parent.appendChild p = html 'p', {id: 'help'}, [
+	parent.style.display = 'none'
+	parent.parentNode.appendChild p = html 'p', {id: 'help'}, [
 		text 'Click in the white area to spill dots. Try changing the window height or '
 		html 'a', {href: '#'}, [text('play with the options')],
 			click: (e) =>
 				e.preventDefault()
-				parent.removeChild p
-				pane.style.display = 'block'
+				p.parentNode.removeChild p
+				parent.style.display = 'block'
 		text '.'
 	]
+	parent.appendChild pane = html 'p', {id: 'options'}
 	option = (name, min, max, variable, notify) ->
 		range = 1000
 		pane.appendChild html 'label', {}, [
@@ -293,7 +296,8 @@ window.onload = ->
 		window.msRequestAnimationFrame or
 		(cb, e) -> window.setTimeout(cb, 20)
 	# Initialize and start
-	f = new Flow(document.getElementById 'canvas')
+	$('more').appendChild html 'p', {}, [stats = text('')]
+	f = new Flow($('canvas'), (t)->stats.data = t)
 	resize = ->
 		w = Math.min(MAX_WIDTH, window.innerWidth)
 		f.resize(w, window.innerHeight)
@@ -301,7 +305,7 @@ window.onload = ->
 	# Resize canvas with window
 	window.addEventListener 'resize', resize, false
 	# Options pane
-	create_options(document.getElementById 'info')\
+	create_options($ 'more')\
 		('Gravity', 0, 1, 'GRAVITY')\
 		('Density', 0, 5, 'DENSITY')\
 		('Type Sep.', 0, 1, 'PRESSURE')\
@@ -309,4 +313,7 @@ window.onload = ->
 		('Dot Limit', 10, 10000, 'LIMIT', ->
 			LIMIT = Math.floor(LIMIT)
 			if f.particles.length > LIMIT then f.particles.length = LIMIT
-		)('Max Width', 50, 2000, 'MAX_WIDTH', resize)
+		)('Max Width', 50, 2000, 'MAX_WIDTH', resize)\
+		('Radius', 1, 10, 'RADIUS')\
+		('Vel. Scale', 0, 10, 'VEL_SCALE')
+	null
