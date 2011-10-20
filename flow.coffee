@@ -114,8 +114,11 @@ class Flow
 
 	# Render one frame
 	render_frame: =>
+		# schedule at start for constant frame rate
 		window._requestAnimationFrame(@render_frame, @canvas)
+		# spawn new dots
 		@pour() if @pressing
+		# simulate and draw
 		@calculate_forces()
 		@move_particles()
 		@draw_particles()
