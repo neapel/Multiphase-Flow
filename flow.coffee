@@ -228,7 +228,9 @@ class Flow
 					count = 0
 				last_type = p.type
 				@context.moveTo(p.x, p.y)
-				@context.lineTo(p.x - f * p.vx, p.y - f * p.vy)
+				vx = f * p.vx
+				vx = 0.5 if Math.abs(vx) < 0.01
+				@context.lineTo(p.x - vx, p.y - f * p.vy)
 				count++
 			@context.stroke()
 		# Info
@@ -254,4 +256,3 @@ window.onload = ->
 	resize()
 	# Resize canvas with window
 	window.addEventListener 'resize', resize, false
-	
