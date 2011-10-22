@@ -63,8 +63,6 @@ class Neighbors
 # One particle.
 class Particle
 	constructor: (@x, @y, type) ->
-		# Grid position
-		@gx = @gy = 0
 		# Velocity
 		@vx = @vy = 0
 		# Force
@@ -168,11 +166,15 @@ class Flow
 		n_index = 0
 		# Calculate each particle's density and neighbors
 		for p in @particles
+			# calculate this particle's grid position
+			gx = Math.min(@grid_width - 1, Math.max(0, Math.floor(p.x / @cell_width)))
+			gy = Math.min(@grid_height - 1, Math.max(0, Math.floor(p.y / @cell_height)))
+			# Find neighbors
 			for dx in [-1 .. 1]
 				for dy in [-1 .. 1]
-					i = grid_index(p.gx + dx, p.gy + dy)
-					if grid[i] != undefined
-						for q in grid[i]
+					g = grid[grid_index(gx + dx, gy + dy)]
+					if g != undefined
+						for q in g
 							if Math.pow(p.x - q.x, 2) + Math.pow(p.y - q.y, 2) < Math.pow(RANGE, 2)
 								if n_index >= @neighbors.length
 									@neighbors.push( new Neighbors(p, q) )
@@ -180,7 +182,7 @@ class Flow
 									@neighbors[n_index].constructor(p, q)
 								n_index++
 			# Add this particle for interaction with others
-			j = grid_index(p.gx, p.gy)
+			j = grid_index(gx, gy)
 			(if grid[j] == undefined then grid[j] = [] else grid[j]).push(p)
 		# Truncate
 		@neighbors.length = n_index
@@ -209,10 +211,6 @@ class Flow
 			p.vy += (@bottom - p.y) * 0.5 - p.vy * 0.5 if p.y > @bottom
 			# Reset
 			p.fx = p.fy = p.density = p.density_near = 0
-			# Grid position
-			p.gx = Math.min(@grid_width - 1, Math.max(0, Math.floor(p.x / @cell_width)))
-			p.gy = Math.min(@grid_height - 1, Math.max(0, Math.floor(p.y / @cell_height)))
-
 		null
 
 	# Draw current state
