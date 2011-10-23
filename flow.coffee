@@ -17,6 +17,8 @@ RADIUS = 2.5
 VEL_SCALE = 2
 # Young particles are dampened
 GRACE_TIME = 10
+# Font to use for keyboard spawning
+PARTICLE_FONT = '300px "Varela Round", sans-serif'
 
 # Particle colors
 COLORS = [
@@ -103,7 +105,21 @@ class Flow
 		@canvas.addEventListener 'mouseout', up, false
 		document.addEventListener 'keypress', ( (e)=>
 			s = String.fromCharCode(e.charCode or e.keyCode)
-			@char(s) if s
+			if @next_text
+				if e.keyCode == 13 # Enter: submit
+					@char(@next_text.trim())
+					@next_text = null
+				else
+					@next_text += s
+			else
+				if e.keyCode == 13 # Enter: start
+					@next_text = ' '
+				else
+					@char(s)
+		), false
+		document.addEventListener 'keydown', ( (e)=>
+			if @next_text and e.keyCode == 8
+				@next_text = @next_text.substring(0, @next_text.length - 1)
 		), false
 		# Current mouse state
 		@pressing = false
@@ -162,16 +178,19 @@ class Flow
 			p
 
 	# Add a character
+	render_text: (text, ctx, method = 'fillText') ->
+		ctx.font = PARTICLE_FONT
+		m = ctx.measureText(text).width
+		ctx[method](text, (@canvas.width - m) * 0.5, @canvas.height * 0.5)
+
 	char: (text) ->
 		# Render text into a background canvas, retrieve pixels.
 		bg = document.createElement 'canvas'
 		bg.width = @canvas.width
 		bg.height = @canvas.height
 		ctx = bg.getContext '2d'
-		ctx.font = '300px impact'
 		ctx.fillStyle = '#000'
-		m = ctx.measureText(text).width
-		ctx.fillText(text, (bg.width - m) * 0.5, bg.height * 0.5)
+		@render_text(text, ctx)
 		d = ctx.getImageData(0, 0, bg.width, bg.height)
 		step = 8
 		for y in [0 .. d.height - 1] by step
@@ -251,6 +270,15 @@ class Flow
 	# Draw current state
 	draw_particles: ->
 		@canvas.width = @canvas.width
+		# Preview multi-char text
+		if @next_text
+			@context.save()
+			@context.globalAlpha = 0.2
+			@context.lineWidth = 3
+			@context.strokeStyle = '#000'
+			@render_text(@next_text.trim(), @context, 'strokeText')
+			@context.restore()
+
 		last_type = -1
 		if VEL_SCALE == 0
 			# Draw particles as dots
@@ -300,7 +328,7 @@ $ = (n) -> document.getElementById(n)
 create_options = (parent)->
 	parent.style.display = 'none'
 	parent.parentNode.appendChild p = html 'p', {id: 'help'}, [
-		text 'Click in the white area to spill dots. Try changing the window height or '
+		text 'Click in the white area to spill dots. Type a letter, try changing the window height or '
 		html 'a', {href: '#'}, [text('play with the options')],
 			click: (e) =>
 				e.preventDefault()
