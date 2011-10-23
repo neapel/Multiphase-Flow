@@ -15,6 +15,8 @@ NICE = true
 RADIUS = 2.5
 # Velocity scale for nice rendering
 VEL_SCALE = 2
+# Young particles are dampened
+GRACE_TIME = 10
 
 # Particle colors
 COLORS = [
@@ -99,6 +101,10 @@ class Flow
 			@pressing = false
 		@canvas.addEventListener 'mouseup', up, false
 		@canvas.addEventListener 'mouseout', up, false
+		document.addEventListener 'keypress', ( (e)=>
+			s = String.fromCharCode(e.charCode or e.keyCode)
+			@char(s) if s
+		), false
 		# Current mouse state
 		@pressing = false
 		# Count splashes for coloring
@@ -142,18 +148,47 @@ class Flow
 		@mouse = {x: w/2, y: h/3}
 		null
 
+	# Add a dot
+	add_particle: (x, y) ->
+		x += Math.random()
+		y += Math.random()
+		if @particles.length >= LIMIT
+			i = @last_particle++ % LIMIT
+			@particles[i].constructor(x, y, @splash)
+			@particles[i]
+		else
+			p = new Particle(x, y, @splash)
+			@particles.push(p)
+			p
+
+	# Add a character
+	char: (text) ->
+		# Render text into a background canvas, retrieve pixels.
+		bg = document.createElement 'canvas'
+		bg.width = @canvas.width
+		bg.height = @canvas.height
+		ctx = bg.getContext '2d'
+		ctx.font = '300px impact'
+		ctx.fillStyle = '#000'
+		m = ctx.measureText(text).width
+		ctx.fillText(text, (bg.width - m) * 0.5, bg.height * 0.5)
+		d = ctx.getImageData(0, 0, bg.width, bg.height)
+		step = 8
+		for y in [0 .. d.height - 1] by step
+			for x in [0 .. d.width - 1] by step
+				px = d.data[(x + y * d.width) * 4 + 3]
+				if px
+					@add_particle(x, y).age = GRACE_TIME - 2
+		@splash++
+		null
+
 	# Add dots to the simulation
 	pour: ->
 		k = 1
+		f = 2
 		for j in [-k .. k]
 			for i in [-k .. k]
-				f = 2
-				x = @mouse.x + i * f + Math.random()
-				y = @mouse.y + j * f + Math.random()
-				if @particles.length >= LIMIT
-					@particles[@last_particle++ % LIMIT].constructor(x, y, @splash)
-				else
-					@particles.push(new Particle(x, y, @splash))
+				@add_particle(@mouse.x + i * f, @mouse.y + j * f)
 		null
 
 	# Calculate forces between all particles
@@ -202,7 +237,7 @@ class Flow
 			p.x += p.vx
 			p.y += p.vy
 			# Reset young particle velocity to prevent spawn explosion
-			if p.age++ < 10
+			if p.age++ < GRACE_TIME
 				p.vx = p.vy = 0
 			# Bounce off walls
 			p.vx += (@left - p.x) * 0.5 - p.vx * 0.5 if p.x < @left
