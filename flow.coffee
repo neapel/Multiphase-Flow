@@ -118,8 +118,11 @@ class Flow
 					@char(s)
 		), false
 		document.addEventListener 'keydown', ( (e)=>
-			if @next_text and e.keyCode == 8
+			if @next_text and e.keyCode == 8 # Backspace
 				@next_text = @next_text.substring(0, @next_text.length - 1)
+			else if e.keyCode == 46 # Delete
+				@last_particle = 0
+				@particles.length = 0
 		), false
 		# Current mouse state
 		@pressing = false
@@ -360,7 +363,8 @@ window.onload = ->
 		window.msRequestAnimationFrame or
 		(cb, e) -> window.setTimeout(cb, 20)
 	# Initialize and start
-	$('more').appendChild html 'p', {}, [stats = text('')]
+	more = $('more')
+	more.appendChild html 'p', {}, [stats = text('')]
 	f = new Flow($('canvas'), (t)->stats.data = t)
 	resize = ->
 		w = Math.min(MAX_WIDTH, window.innerWidth)
@@ -369,7 +373,14 @@ window.onload = ->
 	# Resize canvas with window
 	window.addEventListener 'resize', resize, false
 	# Options pane
-	create_options($ 'more')\
+	more.appendChild html 'p', {}, [
+		text 'Press '
+		html 'kbd', {}, [text 'Delete']
+		text ' to reset, '
+		html 'kbd', {}, [text 'Enter']
+		text ' to toggle multi-character mode.'
+	]
+	create_options(more)\
 		('Gravity', 0, 1, 'GRAVITY')\
 		('Density', 0, 5, 'DENSITY')\
 		('Type Sep.', 0, 1, 'PRESSURE')\

@@ -20,6 +20,7 @@ canvas {
 	bottom: 0;
 	padding: 0.25em 0.5em;
 	background: rgba(255, 255, 255, 0.8);
+	width: 18em;
 }
 
 #help { max-width: 15em ;}
@@ -36,6 +37,12 @@ a:hover, a:focus {
 	color: #fff;
 	background-color: #000;
 	text-decoration: none;
+}
+kbd {
+	font: inherit;
+	border: 2px outset #eee;
+	background-color: #eee;
+	border-radius: 2px;
 }
 
 
