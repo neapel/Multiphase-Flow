@@ -340,9 +340,11 @@ create_options = (parent)->
 		text '.'
 	]
 	parent.appendChild pane = html 'p', {id: 'options'}
-	option = (name, min, max, variable, notify) ->
+	option = (name, desc, min, max, variable, notify) ->
 		range = 1000
-		pane.appendChild html 'label', {}, [
+		pane.appendChild html 'label', {
+			title: desc
+		}, [
 			text name
 			html 'input', {type: 'range', min: 0, max: range,
 			value: (window[variable] - min) / (max - min) * range}, [], 
@@ -381,14 +383,14 @@ window.onload = ->
 		text ' to toggle multi-character mode.'
 	]
 	create_options(more)\
-		('Gravity', 0, 1, 'GRAVITY')\
-		('Density', 0, 5, 'DENSITY')\
-		('Type Sep.', 0, 1, 'PRESSURE')\
-		('Inner Sep.', 0.1, 1, 'PRESSURE_NEAR')\
-		('Dot Limit', 10, 10000, 'LIMIT', ->
+		('Gravity', 'Set to 0 for organic text effects.', 0, 1, 'GRAVITY')\
+		('Density', 'Overall dot separation.', 0, 5, 'DENSITY')\
+		('Type Sep.', 'Separation between dots of different color.', 0, 1, 'PRESSURE')\
+		('Inner Sep.', 'Separation between dots of same color.', 0.1, 1, 'PRESSURE_NEAR')\
+		('Dot Limit', 'Maximum number of dots. Oldest are recycled.', 10, 10000, 'LIMIT', ->
 			LIMIT = Math.floor(LIMIT)
 			if f.particles.length > LIMIT then f.particles.length = LIMIT
-		)('Max Width', 50, 2000, 'MAX_WIDTH', resize)\
-		('Radius', 1, 10, 'RADIUS')\
-		('Vel. Scale', 0, 10, 'VEL_SCALE')
+		)('Max Width', 'Set to maximum and resize the window', 50, 2000, 'MAX_WIDTH', resize)\
+		('Radius', 'Radius of displayed dots', 1, 10, 'RADIUS')\
+		('Vel. Scale', 'Set to 0 for faster drawing', 0, 10, 'VEL_SCALE')
 	null
